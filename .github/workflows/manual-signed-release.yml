@@ -1,0 +1,157 @@
+name: Manual signed APK release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected ref
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Prepare signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          required = (
+              "ANDROID_KEYSTORE_BASE64",
+              "ANDROID_KEYSTORE_PASSWORD",
+              "ANDROID_KEY_ALIAS",
+              "ANDROID_KEY_PASSWORD",
+          )
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit(
+                  "::error::Configure these repository Actions secrets: "
+                  + ", ".join(missing)
+              )
+
+          keystore_dir = Path("app/Keystore")
+          keystore_dir.mkdir(parents=True, exist_ok=True)
+          keystore = base64.b64decode(
+              os.environ["ANDROID_KEYSTORE_BASE64"], validate=True
+          )
+          (keystore_dir / "SlideshowWallpaper.jks").write_bytes(keystore)
+
+          def escape_property(value):
+              escaped = []
+              for index, character in enumerate(value):
+                  codepoint = ord(character)
+                  if character == "\\":
+                      escaped.append("\\\\")
+                  elif character in "\t\n\r\f":
+                      escaped.append(
+                          {"\t": "\\t", "\n": "\\n", "\r": "\\r", "\f": "\\f"}[
+                              character
+                          ]
+                      )
+                  elif character in ":=#!":
+                      escaped.append("\\" + character)
+                  elif character == " " and index == 0:
+                      escaped.append("\\ ")
+                  elif codepoint < 0x20 or codepoint > 0x7E:
+                      encoded = character.encode("utf-16-be")
+                      escaped.extend(
+                          "\\u" + encoded[i : i + 2].hex().upper()
+                          for i in range(0, len(encoded), 2)
+                      )
+                  else:
+                      escaped.append(character)
+              return "".join(escaped)
+
+          properties = {
+              "storeFile": "Keystore/SlideshowWallpaper.jks",
+              "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
+              "keyAlias": os.environ["ANDROID_KEY_ALIAS"],
+              "keyPassword": os.environ["ANDROID_KEY_PASSWORD"],
+          }
+          properties_path = keystore_dir / "keystore.properties"
+          properties_path.write_text(
+              "".join(
+                  f"{key}={escape_property(value)}\n"
+                  for key, value in properties.items()
+              ),
+              encoding="ascii",
+          )
+          PY
+
+      - name: Build release APK
+        run: ./gradlew --no-daemon clean assembleRelease
+
+      - name: Verify APK signature and create checksum
+        id: apk
+        run: |
+          timestamp="$(date -u +'%Y%m%d-%H%M%S')"
+          apk="app/build/outputs/apk/release/SlideshowWallpaper-${timestamp}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk"
+          (cd "$(dirname "$apk")" && sha256sum "$(basename "$apk")" > "$(basename "$apk").sha256")
+          echo "timestamp=$timestamp" >> "$GITHUB_OUTPUT"
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
+          echo "checksum=${apk}.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Attest APK build provenance
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.apk.outputs.apk }}
+
+      - name: Upload APK as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlideshowWallpaper-${{ steps.apk.outputs.timestamp }}
+          path: |
+            ${{ steps.apk.outputs.apk }}
+            ${{ steps.apk.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Create timestamped prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APK: ${{ steps.apk.outputs.apk }}
+          CHECKSUM: ${{ steps.apk.outputs.checksum }}
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+          TIMESTAMP: ${{ steps.apk.outputs.timestamp }}
+        run: |
+          tag="prerelease-${TIMESTAMP}"
+          notes="${RUNNER_TEMP}/release-notes.md"
+          {
+            echo "Built from commit \`${GITHUB_SHA}\` on ref \`${GITHUB_REF_NAME}\`."
+            echo
+            echo "Verify the checksum with \`sha256sum --check $(basename "$CHECKSUM")\`."
+            echo
+            echo "Verify the build attestation with \`gh attestation verify $(basename "$APK") --repo ${GITHUB_REPOSITORY}\`."
+          } > "$notes"
+          gh release create "$tag" "$APK" "$CHECKSUM" "$ATTESTATION_BUNDLE" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Prerelease ${TIMESTAMP}" \
+            --notes-file "$notes" \
+            --prerelease

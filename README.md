@@ -91,6 +91,40 @@ If you have a suggestion that would make this better, please fork the repo and c
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
+## Manual signed APK releases
+
+The **Manual signed APK release** GitHub Actions workflow builds an optimized
+release APK, verifies its signature, and creates a timestamped prerelease with
+the APK, its SHA-256 checksum, and a GitHub build-provenance attestation. The
+workflow must be merged to the repository's default branch before GitHub makes
+it available for manual dispatch from the Actions tab. When running it, select
+the branch or commit to build; each release points to that exact commit. Only
+select a ref whose code you trust, because its Gradle build runs on the runner
+while the signing keystore is present.
+
+Before running it, add these repository Actions secrets under
+**Settings → Secrets and variables → Actions**:
+
+- `ANDROID_KEYSTORE_BASE64`: the signing keystore encoded as one line of
+  Base64. For example, on Linux, run `base64 -w 0 SlideshowWallpaper.jks`.
+- `ANDROID_KEYSTORE_PASSWORD`: the keystore password.
+- `ANDROID_KEY_ALIAS`: the signing key alias.
+- `ANDROID_KEY_PASSWORD`: the signing key password.
+
+Use the same signing key as prior releases if users need to install this APK as
+an update. Keep a secure backup of that key; without it, future APKs cannot be
+signed as the same publisher. The keystore is written only on the GitHub-hosted
+runner and is not committed to the repository.
+
+The checksum detects changes to the downloaded APK. The attestation can be
+verified with GitHub CLI, for example:
+`gh attestation verify SlideshowWallpaper-<timestamp>.apk --repo eiqnepm/SlideshowWallpaper`.
+It ties the APK to the GitHub Actions workflow and source commit; it does not
+by itself prove that the source code is safe. Review the source and workflow
+for the attested commit before trusting a release.
+
+<p align="right">(<a href="#readme-top">back to top</a>)</p>
+
 
 <!-- LICENSE -->
 ## Project License
