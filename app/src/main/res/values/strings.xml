@@ -21,6 +21,8 @@
 <resources>
     <string name="app_name">Slideshow Wallpaper</string>
     <string name="preference_edit_image_list">Images</string>
+    <string name="preference_edit_light_images">Light mode images</string>
+    <string name="preference_edit_dark_images">Dark mode images</string>
     <string name="preference_ordering">Ordering</string>
     <string name="error_reading_file">Error reading file</string>
     <string name="delete_button_description">Remove</string>

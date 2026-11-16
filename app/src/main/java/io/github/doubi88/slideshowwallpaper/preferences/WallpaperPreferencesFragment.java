@@ -79,7 +79,8 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
 
     private void updateSummaries(Resources resources) {
         SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
-        updateSummary(sharedPreferences, getResources().getString(R.string.preference_add_images_key));
+        updateSummary(sharedPreferences, resources.getString(R.string.preference_add_images_key));
+        updateSummary(sharedPreferences, resources.getString(R.string.preference_add_dark_images_key));
         updateSummary(sharedPreferences, resources.getString(R.string.preference_seconds_key));
         updateSummary(sharedPreferences, resources.getString(R.string.preference_ordering_key));
         updateSummary(sharedPreferences, resources.getString(R.string.preference_too_wide_images_rule_key));
@@ -102,9 +103,13 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
             // There is no context currently -> We do not need to update the view
         }
         if (res != null) {
-            if (key.equals(res.getString(R.string.preference_add_images_key))) {
+            if (key.equals(res.getString(R.string.preference_add_images_key))
+                    || key.equals(res.getString(R.string.preference_add_dark_images_key))) {
                 SharedPreferencesManager prefManager = new SharedPreferencesManager(sharedPreferences);
-                int imagesCount = prefManager.getImageUris(SharedPreferencesManager.Ordering.SELECTION).size();
+                SharedPreferencesManager.ImageSet imageSet = key.equals(res.getString(R.string.preference_add_dark_images_key))
+                        ? SharedPreferencesManager.ImageSet.DARK
+                        : SharedPreferencesManager.ImageSet.LIGHT;
+                int imagesCount = prefManager.getImageUris(imageSet, SharedPreferencesManager.Ordering.SELECTION).size();
 
                 int maxCount = 128;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

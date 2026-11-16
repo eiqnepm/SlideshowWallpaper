@@ -70,7 +70,7 @@
 <!-- ABOUT THE PROJECT -->
 ## About The Project
 
-Slideshow Wallpaper is a Live Wallpaper for Android, that displays a slideshow of user selected images. You can customize the duration, how long the images are displayed, the order and the display mode.
+Slideshow Wallpaper is a Live Wallpaper for Android, that displays a slideshow of user selected images. You can customize the duration, how long the images are displayed, the order and the display mode. Separate image lists can be configured for Android's light and dark themes; the wallpaper switches lists with the system theme.
 
 <img src="docs/images/screenshot.png" height="605">
 

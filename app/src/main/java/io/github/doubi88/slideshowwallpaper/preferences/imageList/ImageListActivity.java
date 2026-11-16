@@ -56,6 +56,7 @@ import io.github.doubi88.slideshowwallpaper.utilities.ImageInfo;
 public class ImageListActivity extends AppCompatActivity {
 
     private SharedPreferencesManager manager;
+    private SharedPreferencesManager.ImageSet imageSet;
     private static final int REQUEST_CODE_FILE = 1;
 
     private ImageListAdapter imageListAdapter;
@@ -84,8 +85,12 @@ public class ImageListActivity extends AppCompatActivity {
         GridLayoutManager layoutManager = new GridLayoutManager(this, 3);
         recyclerView.setLayoutManager(layoutManager);
         manager = new SharedPreferencesManager(getSharedPreferences(getPackageName() + "_preferences", MODE_PRIVATE));
+        imageSet = SharedPreferencesManager.ImageSet.forValue(getIntent().getStringExtra("image_set"));
+        setTitle(imageSet == SharedPreferencesManager.ImageSet.DARK
+                ? R.string.preference_edit_dark_images
+                : R.string.preference_edit_light_images);
 
-        List<Uri> uris = manager.getImageUris(SharedPreferencesManager.Ordering.SELECTION);
+        List<Uri> uris = manager.getImageUris(imageSet, SharedPreferencesManager.Ordering.SELECTION);
 
         imageListAdapter = new ImageListAdapter(uris);
         imageListAdapter.addOnSelectListener(new OnSelectListener() {
@@ -137,7 +142,7 @@ public class ImageListActivity extends AppCompatActivity {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {
                     for (ImageInfo imageInfo : selectedImages) {
-                        manager.removeUri(imageInfo.getUri());
+                        manager.removeUri(imageInfo.getUri(), imageSet);
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && imageInfo.getSize() > 0 && !manager.hasImageUri(imageInfo.getUri())) {
                             getContentResolver().releasePersistableUriPermission(imageInfo.getUri(), Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         }
@@ -171,7 +176,7 @@ public class ImageListActivity extends AppCompatActivity {
         List<Uri> urisToAdd = new ArrayList<>(uris.size());
         for (Uri uri : uris) {
             boolean takePermissionSuccess = takePermission(uri);
-            if (takePermissionSuccess && manager.addUri(uri)) {
+            if (takePermissionSuccess && manager.addUri(uri, imageSet)) {
                 urisToAdd.add(uri);
             }
         }
@@ -189,7 +194,7 @@ public class ImageListActivity extends AppCompatActivity {
                 Uri uri = data.getData();
                 if (uri != null) {
                     boolean takePermissionSuccess = takePermission(uri);
-                    if (takePermissionSuccess && manager.addUri(uri)) {
+                    if (takePermissionSuccess && manager.addUri(uri, imageSet)) {
                         uris.add(uri);
                     }
                 }
@@ -197,7 +202,7 @@ public class ImageListActivity extends AppCompatActivity {
                 for (int index = 0; index < clipData.getItemCount(); index++) {
                     Uri uri = clipData.getItemAt(index).getUri();
                     boolean takePermissionSuccess = takePermission(uri);
-                    if (takePermissionSuccess && manager.addUri(uri)) {
+                    if (takePermissionSuccess && manager.addUri(uri, imageSet)) {
                         uris.add(uri);
                     }
                 }
@@ -211,6 +216,11 @@ public class ImageListActivity extends AppCompatActivity {
         boolean takePermissionSuccess = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             ContentResolver res = getContentResolver();
+            for (android.content.UriPermission permission : res.getPersistedUriPermissions()) {
+                if (permission.getUri().equals(uri) && permission.isReadPermission()) {
+                    return true;
+                }
+            }
             int perms = res.getPersistedUriPermissions().size();
             res.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
 

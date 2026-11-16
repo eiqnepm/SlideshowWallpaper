@@ -12,6 +12,7 @@ import java.util.TimerTask;
 
 import io.github.doubi88.slideshowwallpaper.R;
 import io.github.doubi88.slideshowwallpaper.preferences.SharedPreferencesManager;
+import io.github.doubi88.slideshowwallpaper.preferences.SharedPreferencesManager.ImageSet;
 
 public class CurrentImageHandler {
 
@@ -19,6 +20,7 @@ public class CurrentImageHandler {
     private ImageInfo currentImage;
 
     private SharedPreferencesManager manager;
+    private ImageSet imageSet;
     private int width;
     private int height;
 
@@ -29,11 +31,28 @@ public class CurrentImageHandler {
     private ArrayList<NextImageListener> nextImageListeners;
 
     public CurrentImageHandler(SharedPreferencesManager manager, int width, int height) {
+        this(manager, width, height, ImageSet.LIGHT);
+    }
+
+    public CurrentImageHandler(SharedPreferencesManager manager, int width, int height, ImageSet imageSet) {
         this.manager = manager;
         this.width = width;
         this.height = height;
+        this.imageSet = imageSet;
         this.runnable = true;
         nextImageListeners = new ArrayList<>(1);
+    }
+
+    public void setImageSet(ImageSet imageSet, Context context) {
+        if (this.imageSet != imageSet) {
+            this.imageSet = imageSet;
+            refresh(context);
+        }
+    }
+
+    public void refresh(Context context) {
+        currentImage = null;
+        updateAfter(context, 0);
     }
 
     public void addNextImageListener(NextImageListener l) {
@@ -65,7 +84,7 @@ public class CurrentImageHandler {
 
     public void startTimer(Context context) {
         runnable = true;
-        long update = calculateNextUpdateInSeconds(context);
+        long update = calculateNextUpdateInSeconds(context, getEffectiveImageSet());
         updateAfter(context, update);
     }
 
@@ -123,6 +142,9 @@ public class CurrentImageHandler {
                 currentImage = ImageLoader.loadImage(uri, context, width, height, false);
                 result = true;
             }
+        } else if (currentImage != null) {
+            currentImage = null;
+            result = true;
         }
         return result;
     }
@@ -131,16 +153,16 @@ public class CurrentImageHandler {
         Uri result = null;
         Resources resources = context.getResources();
         SharedPreferencesManager.Ordering ordering = manager.getCurrentOrdering(resources);
-        int countUris = manager.getImageUrisCount();
+        ImageSet activeImageSet = getEffectiveImageSet();
+        int countUris = manager.getImageUrisCount(activeImageSet);
 
         if (countUris > 0) {
-            int currentImageIndex = manager.getCurrentIndex();
-            if (currentImageIndex >= countUris) {
-                // If an image was deleted and therefore we are over the end of the list
-                currentImageIndex -= countUris;
-            }
-            long nextUpdate = calculateNextUpdateInSeconds(context);
-            if (nextUpdate <= 0) {
+            int currentImageIndex = manager.getCurrentIndex(activeImageSet);
+            long lastUpdate = manager.getLastUpdate(activeImageSet);
+            long nextUpdate = calculateNextUpdateInSeconds(context, activeImageSet);
+            if (lastUpdate == 0) {
+                manager.setLastUpdate(System.currentTimeMillis(), activeImageSet);
+            } else if (nextUpdate <= 0) {
                 int delay = getDelaySeconds(context);
                 while (nextUpdate <= 0) {
                     currentImageIndex++;
@@ -151,18 +173,25 @@ public class CurrentImageHandler {
 
                     nextUpdate += delay;
                 }
-                manager.setCurrentIndex(currentImageIndex);
-                manager.setLastUpdate(System.currentTimeMillis());
+                manager.setCurrentIndex(currentImageIndex, activeImageSet);
+                manager.setLastUpdate(System.currentTimeMillis(), activeImageSet);
             }
-            result = manager.getImageUri(currentImageIndex, ordering);
+            result = manager.getImageUri(currentImageIndex, activeImageSet, ordering);
             currentIndex = currentImageIndex;
         }
 
         return result;
     }
 
-    private long calculateNextUpdateInSeconds(Context context) {
-        long lastUpdate = manager.getLastUpdate();
+    private ImageSet getEffectiveImageSet() {
+        if (manager.getImageUrisCount(imageSet) > 0) {
+            return imageSet;
+        }
+        return imageSet == ImageSet.LIGHT ? ImageSet.DARK : ImageSet.LIGHT;
+    }
+
+    private long calculateNextUpdateInSeconds(Context context, ImageSet activeImageSet) {
+        long lastUpdate = manager.getLastUpdate(activeImageSet);
         long result = 0;
         if (lastUpdate > 0) {
             int delaySeconds = getDelaySeconds(context);

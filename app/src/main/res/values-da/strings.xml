@@ -22,6 +22,8 @@
 <resources>
     <string name="app_name">Slideshow Wallpaper</string>
     <string name="preference_edit_image_list">Billeder</string>
+    <string name="preference_edit_light_images">Billeder til lyst tema</string>
+    <string name="preference_edit_dark_images">Billeder til mørkt tema</string>
     <string name="preference_ordering">Sortering</string>
     <string name="error_reading_file">Fejl ved indlæsning af filen</string>
     <string name="delete_button_description">Fjern</string>

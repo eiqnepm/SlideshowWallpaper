@@ -36,19 +36,61 @@ public class SharedPreferencesManager {
     private static final String PREFERENCE_KEY_LAST_INDEX = "last_index";
     private static final String PREFERENCE_KEY_URI_LIST = "pick_images";
     private static final String PREFERENCE_KEY_URI_LIST_RANDOM = "uri_list_random";
+    private static final String PREFERENCE_KEY_LAST_UPDATE_DARK = "last_update_dark";
+    private static final String PREFERENCE_KEY_LAST_INDEX_DARK = "last_index_dark";
+    private static final String PREFERENCE_KEY_URI_LIST_DARK = "pick_images_dark";
+    private static final String PREFERENCE_KEY_URI_LIST_RANDOM_DARK = "uri_list_random_dark";
     private static final String PREFERENCE_KEY_SECONDS_BETWEEN = "seconds";
     private static final String PREFERENCE_KEY_TOO_WIDE_IMAGES_RULE = "too_wide_images_rule";
     private static final String PREFERENCE_KEY_ANTI_ALIAS = "anti_alias";
     private static final String PREFERENCE_KEY_ANTI_ALIAS_WHILE_SCROLLING = "anti_alias_scrolling";
 
+    public enum ImageSet {
+        LIGHT("light", PREFERENCE_KEY_URI_LIST, PREFERENCE_KEY_URI_LIST_RANDOM,
+                PREFERENCE_KEY_LAST_INDEX, PREFERENCE_KEY_LAST_UPDATE),
+        DARK("dark", PREFERENCE_KEY_URI_LIST_DARK, PREFERENCE_KEY_URI_LIST_RANDOM_DARK,
+                PREFERENCE_KEY_LAST_INDEX_DARK, PREFERENCE_KEY_LAST_UPDATE_DARK);
+
+        private final String value;
+        private final String selectionKey;
+        private final String randomKey;
+        private final String currentIndexKey;
+        private final String lastUpdateKey;
+
+        ImageSet(String value, String selectionKey, String randomKey, String currentIndexKey, String lastUpdateKey) {
+            this.value = value;
+            this.selectionKey = selectionKey;
+            this.randomKey = randomKey;
+            this.currentIndexKey = currentIndexKey;
+            this.lastUpdateKey = lastUpdateKey;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        private String getPreferenceKey(Ordering ordering) {
+            return ordering == Ordering.SELECTION ? selectionKey : randomKey;
+        }
+
+        public static ImageSet forValue(String value) {
+            for (ImageSet imageSet : values()) {
+                if (imageSet.value.equals(value)) {
+                    return imageSet;
+                }
+            }
+            return LIGHT;
+        }
+    }
+
     public enum Ordering {
-        SELECTION(0, PREFERENCE_KEY_URI_LIST) {
+        SELECTION(0) {
             @Override
             public List<Uri> sort(List<Uri> list) {
                 return list;
             }
         },
-        RANDOM(1, PREFERENCE_KEY_URI_LIST_RANDOM) {
+        RANDOM(1) {
             @Override
             public List<Uri> sort(List<Uri> list) {
                 List<Uri> result = new ArrayList<>(list);
@@ -58,11 +100,9 @@ public class SharedPreferencesManager {
         };
 
         private int valueListIndex;
-        private String preferenceKey;
 
-        private Ordering(int valueListIndex, String preferenceKey) {
+        private Ordering(int valueListIndex) {
             this.valueListIndex = valueListIndex;
-            this.preferenceKey = preferenceKey;
         }
 
         public static Ordering forValue(String value, Resources r) {
@@ -82,10 +122,6 @@ public class SharedPreferencesManager {
 
         public String getValue(Resources r) {
             return r.getStringArray(R.array.ordering_values)[valueListIndex];
-        }
-
-        public String getPreferenceKey() {
-            return preferenceKey;
         }
 
         public abstract List<Uri> sort(List<Uri> list);
@@ -134,7 +170,11 @@ public class SharedPreferencesManager {
     }
 
     public List<Uri> getImageUris(@NonNull Ordering ordering) {
-        String[] uris = getUriList(ordering);
+        return getImageUris(ImageSet.LIGHT, ordering);
+    }
+
+    public List<Uri> getImageUris(@NonNull ImageSet imageSet, @NonNull Ordering ordering) {
+        String[] uris = getUriList(imageSet, ordering);
         ArrayList<Uri> result = new ArrayList<>(uris.length);
         for (String uri : uris) {
             result.add(Uri.parse(uri));
@@ -143,22 +183,33 @@ public class SharedPreferencesManager {
     }
 
     public int getImageUrisCount() {
-        String[] uris = getUriList(Ordering.SELECTION);
+        return getImageUrisCount(ImageSet.LIGHT);
+    }
+
+    public int getImageUrisCount(@NonNull ImageSet imageSet) {
+        String[] uris = getUriList(imageSet, Ordering.SELECTION);
         return uris.length;
     }
 
     public Uri getImageUri(@NonNull int index, @NonNull Ordering ordering) {
-        String[] uris = getUriList(ordering);
+        return getImageUri(index, ImageSet.LIGHT, ordering);
+    }
+
+    public Uri getImageUri(int index, @NonNull ImageSet imageSet, @NonNull Ordering ordering) {
+        String[] uris = getUriList(imageSet, ordering);
         return Uri.parse(uris[index]);
     }
 
     public boolean hasImageUri(@NonNull Uri uri) {
-        List<Uri> uris = getImageUris(Ordering.SELECTION);
-        return uris.contains(uri);
+        return hasImageUri(uri, ImageSet.LIGHT) || hasImageUri(uri, ImageSet.DARK);
     }
 
-    private String[] getUriList(Ordering ordering) {
-        String list = preferences.getString(ordering.getPreferenceKey(), null);
+    public boolean hasImageUri(@NonNull Uri uri, @NonNull ImageSet imageSet) {
+        return getImageUris(imageSet, Ordering.SELECTION).contains(uri);
+    }
+
+    private String[] getUriList(ImageSet imageSet, Ordering ordering) {
+        String list = preferences.getString(imageSet.getPreferenceKey(ordering), null);
         if (list == null || list.equals("")) {
             return new String[0];
         } else {
@@ -167,12 +218,16 @@ public class SharedPreferencesManager {
     }
 
     public boolean addUri(Uri uri) {
-        List<Uri> list = getImageUris(Ordering.SELECTION);
+        return addUri(uri, ImageSet.LIGHT);
+    }
+
+    public boolean addUri(Uri uri, @NonNull ImageSet imageSet) {
+        List<Uri> list = getImageUris(imageSet, Ordering.SELECTION);
         boolean result = false;
         if (!list.contains(uri)) {
             result = list.add(uri);
             for (Ordering ordering : Ordering.values()) {
-                saveUriList(ordering.sort(list), ordering.getPreferenceKey());
+                saveUriList(ordering.sort(list), imageSet.getPreferenceKey(ordering));
             }
         }
         return result;
@@ -194,35 +249,55 @@ public class SharedPreferencesManager {
     }
 
     public void removeUri(Uri uri) {
-        List<Uri> uris = getImageUris(Ordering.SELECTION);
+        removeUri(uri, ImageSet.LIGHT);
+    }
+
+    public void removeUri(Uri uri, @NonNull ImageSet imageSet) {
+        List<Uri> uris = getImageUris(imageSet, Ordering.SELECTION);
         uris.remove(uri);
         for (Ordering ordering : Ordering.values()) {
-            saveUriList(ordering.sort(uris), ordering.getPreferenceKey());
+            saveUriList(ordering.sort(uris), imageSet.getPreferenceKey(ordering));
         }
     }
 
     public int getCurrentIndex() {
-        int result = preferences.getInt(PREFERENCE_KEY_LAST_INDEX, 0);
-        String[] uris = getUriList(Ordering.SELECTION);
-        while (result >= uris.length) {
-            result -= uris.length;
+        return getCurrentIndex(ImageSet.LIGHT);
+    }
+
+    public int getCurrentIndex(@NonNull ImageSet imageSet) {
+        int result = preferences.getInt(imageSet.currentIndexKey, 0);
+        int count = getImageUrisCount(imageSet);
+        if (count == 0) {
+            return 0;
         }
-        return result;
+        return result % count;
     }
 
     public void setCurrentIndex(int index) {
+        setCurrentIndex(index, ImageSet.LIGHT);
+    }
+
+    public void setCurrentIndex(int index, @NonNull ImageSet imageSet) {
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putInt(PREFERENCE_KEY_LAST_INDEX, index);
+        editor.putInt(imageSet.currentIndexKey, index);
         editor.apply();
     }
 
     public long getLastUpdate() {
-        return preferences.getLong(PREFERENCE_KEY_LAST_UPDATE, 0);
+        return getLastUpdate(ImageSet.LIGHT);
+    }
+
+    public long getLastUpdate(@NonNull ImageSet imageSet) {
+        return preferences.getLong(imageSet.lastUpdateKey, 0);
     }
 
     public void setLastUpdate(long value) {
+        setLastUpdate(value, ImageSet.LIGHT);
+    }
+
+    public void setLastUpdate(long value, @NonNull ImageSet imageSet) {
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putLong(PREFERENCE_KEY_LAST_UPDATE, value);
+        editor.putLong(imageSet.lastUpdateKey, value);
         editor.apply();
     }
 

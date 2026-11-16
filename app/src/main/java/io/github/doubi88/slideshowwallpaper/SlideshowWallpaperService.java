@@ -20,6 +20,7 @@ package io.github.doubi88.slideshowwallpaper;
 
 import android.app.WallpaperColors;
 import android.content.SharedPreferences;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -33,6 +34,9 @@ import android.view.SurfaceHolder;
 
 import androidx.annotation.RequiresApi;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import io.github.doubi88.slideshowwallpaper.preferences.SharedPreferencesManager;
 import io.github.doubi88.slideshowwallpaper.utilities.CurrentImageHandler;
 import io.github.doubi88.slideshowwallpaper.utilities.ImageInfo;
@@ -41,9 +45,29 @@ import io.github.doubi88.slideshowwallpaper.utilities.ImageLoader;
 
 public class SlideshowWallpaperService extends WallpaperService {
 
+    private final Set<SlideshowWallpaperEngine> engines = new HashSet<>();
+
     @Override
     public Engine onCreateEngine() {
-        return new SlideshowWallpaperEngine();
+        SlideshowWallpaperEngine engine = new SlideshowWallpaperEngine();
+        engines.add(engine);
+        return engine;
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        SharedPreferencesManager.ImageSet imageSet = getImageSet(newConfig);
+        for (SlideshowWallpaperEngine engine : engines) {
+            engine.setImageSet(imageSet);
+        }
+    }
+
+    private SharedPreferencesManager.ImageSet getImageSet(Configuration configuration) {
+        int nightMode = configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        return nightMode == Configuration.UI_MODE_NIGHT_YES
+                ? SharedPreferencesManager.ImageSet.DARK
+                : SharedPreferencesManager.ImageSet.LIGHT;
     }
 
 
@@ -69,10 +93,31 @@ public class SlideshowWallpaperService extends WallpaperService {
         private float xOffsetStep = 0f;
 
         private SharedPreferencesManager manager;
+        private SharedPreferencesManager.ImageSet imageSet;
+        private SharedPreferences preferences;
+        private SharedPreferences.OnSharedPreferenceChangeListener preferenceChangeListener;
 
         public SlideshowWallpaperEngine() {
-            SharedPreferences prefs = getSharedPreferences();
-            manager = new SharedPreferencesManager(prefs);
+            preferences = getSharedPreferences();
+            manager = new SharedPreferencesManager(preferences);
+            imageSet = getImageSet(getResources().getConfiguration());
+            preferenceChangeListener = (sharedPreferences, key) -> {
+                if (key != null && currentImageHandler != null) {
+                    SharedPreferencesManager.ImageSet changedImageSet;
+                    if (key.equals(getString(R.string.preference_add_images_key))) {
+                        changedImageSet = SharedPreferencesManager.ImageSet.LIGHT;
+                    } else if (key.equals(getString(R.string.preference_add_dark_images_key))) {
+                        changedImageSet = SharedPreferencesManager.ImageSet.DARK;
+                    } else {
+                        changedImageSet = null;
+                    }
+                    if (changedImageSet != null && (changedImageSet == imageSet
+                            || manager.getImageUrisCount(imageSet) == 0)) {
+                        currentImageHandler.refresh(getApplicationContext());
+                    }
+                }
+            };
+            preferences.registerOnSharedPreferenceChangeListener(preferenceChangeListener);
 
             handler = new Handler(Looper.getMainLooper());
             drawRunner = new DrawRunner();
@@ -95,6 +140,24 @@ public class SlideshowWallpaperService extends WallpaperService {
             textSize = (int) (10f * scale + 0.5f);
             textPaint.setTextSize(textSize);
             handler.post(drawRunner);
+        }
+
+        private void setImageSet(SharedPreferencesManager.ImageSet imageSet) {
+            this.imageSet = imageSet;
+            if (currentImageHandler != null) {
+                currentImageHandler.setImageSet(imageSet, getApplicationContext());
+            }
+        }
+
+        @Override
+        public void onDestroy() {
+            engines.remove(this);
+            preferences.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener);
+            if (currentImageHandler != null) {
+                currentImageHandler.stop();
+            }
+            handler.removeCallbacks(drawRunner);
+            super.onDestroy();
         }
 
         @Override
@@ -138,7 +201,7 @@ public class SlideshowWallpaperService extends WallpaperService {
             this.width = width;
             this.height = height;
             if (currentImageHandler == null) {
-                currentImageHandler = new CurrentImageHandler(manager, width, height);
+                currentImageHandler = new CurrentImageHandler(manager, width, height, imageSet);
                 currentImageHandler.addNextImageListener((i) -> {
                     handler.removeCallbacks(drawRunner);
                     handler.post(drawRunner);
