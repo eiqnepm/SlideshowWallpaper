@@ -28,6 +28,7 @@
     <string name="error_reading_file">Fejl ved indlæsning af filen</string>
     <string name="delete_button_description">Fjern</string>
     <string name="preference_seconds">Tid mellem billeder</string>
+    <string name="invalid_time_interval">Vælg et interval på mindst ét minut.</string>
     <plurals name="images_selected">
         <item quantity="one">%d billede valgt (maks. %d)</item>
         <item quantity="other">%d billeder valgt (maks. %d)</item>
@@ -65,21 +66,6 @@
         <item>Scroll med hjemmeskærmen i modsat retning</item>
         <item>Nedskalér så billedet passer</item>
         <item>Opskalér så billedet passer</item>
-    </string-array>
-    <string-array name="seconds">
-        <item>10 sek</item>
-        <item>15 sek</item>
-        <item>30 sek</item>
-        <item>1 min</item>
-        <item>5 min</item>
-        <item>15 min</item>
-        <item>30 min</item>
-        <item>1 time</item>
-        <item>6 timer</item>
-        <item>12 timer</item>
-        <item>1 dag</item>
-        <item>2 dage</item>
-        <item>7 dage</item>
     </string-array>
     <string name="remove_image">Fjern billede(r)</string>
 

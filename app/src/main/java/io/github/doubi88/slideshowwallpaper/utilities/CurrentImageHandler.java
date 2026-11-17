@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Timer;
 import java.util.TimerTask;
 
-import io.github.doubi88.slideshowwallpaper.R;
 import io.github.doubi88.slideshowwallpaper.preferences.SharedPreferencesManager;
 import io.github.doubi88.slideshowwallpaper.preferences.SharedPreferencesManager.ImageSet;
 
@@ -163,7 +162,7 @@ public class CurrentImageHandler {
             if (lastUpdate == 0) {
                 manager.setLastUpdate(System.currentTimeMillis(), activeImageSet);
             } else if (nextUpdate <= 0) {
-                int delay = getDelaySeconds(context);
+                int delay = getDelaySeconds();
                 while (nextUpdate <= 0) {
                     currentImageIndex++;
 
@@ -194,20 +193,19 @@ public class CurrentImageHandler {
         long lastUpdate = manager.getLastUpdate(activeImageSet);
         long result = 0;
         if (lastUpdate > 0) {
-            int delaySeconds = getDelaySeconds(context);
+            int delaySeconds = getDelaySeconds();
             long current = System.currentTimeMillis();
             result = delaySeconds - ((current - lastUpdate) / 1000); // Difference between delay and elapsed time since last update in seconds
         }
         return result;
     }
 
-    private int getDelaySeconds(Context context) {
-        Resources resources = context.getResources();
-        int seconds = 5;
+    private int getDelaySeconds() {
+        int seconds = 60;
         try {
             seconds = manager.getSecondsBetweenImages();
-            String[] entries = resources.getStringArray(R.array.seconds_values);
-            seconds = CompatibilityHelpers.getNextAvailableSecondsEntry(seconds, entries); // Because of the update of the seconds entries (Issue #14), we have to find the nearest entry here.
+            long totalMinutes = (Math.max(0L, (long) seconds) + 59L) / 60L;
+            seconds = (int) Math.min(Integer.MAX_VALUE, Math.max(60L, totalMinutes * 60L));
         } catch (NumberFormatException e) {
             Log.e(CurrentImageHandler.class.getSimpleName(), "Invalid number", e);
         }

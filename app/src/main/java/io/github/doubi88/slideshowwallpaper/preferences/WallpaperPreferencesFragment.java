@@ -18,6 +18,7 @@
  */
 package io.github.doubi88.slideshowwallpaper.preferences;
 
+import android.app.TimePickerDialog;
 import android.app.WallpaperManager;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
@@ -28,14 +29,15 @@ import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
+import android.widget.TimePicker;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
+import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
 
 import io.github.doubi88.slideshowwallpaper.R;
 import io.github.doubi88.slideshowwallpaper.SlideshowWallpaperService;
-import io.github.doubi88.slideshowwallpaper.utilities.CompatibilityHelpers;
 
 public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
     public static int DEFAULT_SECONDS = 60;
@@ -43,6 +45,57 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
     @Override
     public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
         addPreferencesFromResource(R.xml.wallpaper_preferences);
+        Preference intervalPreference = findPreference(getString(R.string.preference_seconds_key));
+        intervalPreference.setOnPreferenceClickListener(preference -> {
+            showIntervalPicker();
+            return true;
+        });
+    }
+
+    private void showIntervalPicker() {
+        SharedPreferences sharedPreferences = getPreferenceManager().getSharedPreferences();
+        String key = getString(R.string.preference_seconds_key);
+        int seconds = DEFAULT_SECONDS;
+        try {
+            seconds = Integer.parseInt(sharedPreferences.getString(key, String.valueOf(DEFAULT_SECONDS)));
+        } catch (NumberFormatException e) {
+            Toast.makeText(requireContext(), R.string.invalid_time_interval, Toast.LENGTH_SHORT).show();
+        }
+
+        int totalMinutes = getTotalMinutes(seconds);
+        int hour = Math.min(totalMinutes / 60, 23);
+        int minute = totalMinutes >= 24 * 60 ? 59 : totalMinutes % 60;
+        TimePickerDialog dialog = new TimePickerDialog(requireContext(), (view, selectedHour, selectedMinute) -> {},
+                hour, minute, true);
+        dialog.setTitle(R.string.preference_seconds);
+        dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(view -> {
+            TimePicker timePicker = dialog.getTimePicker();
+            int selectedHour = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    ? timePicker.getHour()
+                    : timePicker.getCurrentHour();
+            int selectedMinute = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    ? timePicker.getMinute()
+                    : timePicker.getCurrentMinute();
+            if (selectedHour == 0 && selectedMinute == 0) {
+                Toast.makeText(requireContext(), R.string.invalid_time_interval, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            int selectedSeconds = (selectedHour * 60 + selectedMinute) * 60;
+            sharedPreferences.edit().putString(key, String.valueOf(selectedSeconds)).apply();
+            findPreference(key).setSummary(formatInterval(selectedSeconds));
+            dialog.dismiss();
+        }));
+        dialog.show();
+    }
+
+    private String formatInterval(int seconds) {
+        int totalMinutes = getTotalMinutes(seconds);
+        return String.format(java.util.Locale.getDefault(), "%02d:%02d",
+                totalMinutes / 60, totalMinutes % 60);
+    }
+
+    private int getTotalMinutes(int seconds) {
+        return (int) Math.max(1L, (Math.max(0L, (long) seconds) + 59L) / 60L);
     }
 
     @Override
@@ -117,18 +170,14 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
                 }
                 findPreference(key).setSummary(res.getQuantityString(R.plurals.images_selected, imagesCount, imagesCount, maxCount));
             } else if (key.equals(res.getString(R.string.preference_seconds_key))) {
-                String[] seconds = res.getStringArray(R.array.seconds);
-                String[] secondsValues = res.getStringArray(R.array.seconds_values);
                 String currentValue = sharedPreferences.getString(key, String.valueOf(DEFAULT_SECONDS));
                 int intValue = DEFAULT_SECONDS;
                 try {
                     intValue = Integer.parseInt(currentValue);
                 } catch (NumberFormatException e) {
-                    intValue = DEFAULT_SECONDS;
+                    // Use the default interval when the stored value is invalid.
                 }
-                int currentIntValue = CompatibilityHelpers.getNextAvailableSecondsEntry(intValue, secondsValues);
-                int index = getIndex(secondsValues, String.valueOf(currentIntValue));
-                findPreference(key).setSummary(seconds[index]);
+                findPreference(key).setSummary(formatInterval(intValue));
             } else if (key.equals(res.getString(R.string.preference_ordering_key))) {
                 String[] orderings = res.getStringArray(R.array.orderings);
                 String[] orderingValues = res.getStringArray(R.array.ordering_values);

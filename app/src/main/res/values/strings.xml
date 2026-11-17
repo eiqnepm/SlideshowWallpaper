@@ -27,6 +27,7 @@
     <string name="error_reading_file">Error reading file</string>
     <string name="delete_button_description">Remove</string>
     <string name="preference_seconds">Time between images</string>
+    <string name="invalid_time_interval">Please choose an interval of at least one minute.</string>
     <plurals name="images_selected">
         <item quantity="one">%d image selected (max. %d)</item>
         <item quantity="other">%d images selected (max. %d)</item>
@@ -71,20 +72,5 @@
         <item>Scroll with home screens in opposite direction</item>
         <item>Scale down to fit</item>
         <item>Scale up to fit</item>
-    </string-array>
-    <string-array name="seconds">
-        <item>10 sec</item>
-        <item>15 sec</item>
-        <item>30 sec</item>
-        <item>1 min</item>
-        <item>5 min</item>
-        <item>15 min</item>
-        <item>30 min</item>
-        <item>1 hour</item>
-        <item>6 hours</item>
-        <item>12 hours</item>
-        <item>1 day</item>
-        <item>2 days</item>
-        <item>7 days</item>
     </string-array>
 </resources>

@@ -28,6 +28,7 @@
     <string name="error_reading_file">Fehler beim Lesen der Datei</string>
     <string name="delete_button_description">Entfernen</string>
     <string name="preference_seconds">Zeit bis zum Bilderwechsel</string>
+    <string name="invalid_time_interval">Bitte wählen Sie ein Intervall von mindestens einer Minute.</string>
     <plurals name="images_selected">
         <item quantity="one">%d Bild ausgewählt (max %d)</item>
         <item quantity="other">%d Bilder ausgewählt (max %d)</item>
@@ -66,20 +67,6 @@
         <item>Passend</item>
         <item>Zoomen</item>
     </string-array>
-    <string-array name="seconds">
-        <item>10 Sek.</item>
-        <item>15 Sek.</item>
-        <item>30 Sek.</item>
-        <item>1 Min.</item>
-        <item>5 Min.</item>
-        <item>15 Min.</item>
-        <item>30 Min.</item>
-        <item>1 Std.</item>
-        <item>6 Std.</item>
-        <item>12 Std.</item>
-        <item>1 Tag</item>
-        <item>2 Tage</item>
-        <item>7 Tage</item>
-    </string-array>
+
     <string name="remove_image">Bild(er) entfernen</string>
 </resources>
