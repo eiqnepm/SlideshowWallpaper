@@ -29,7 +29,6 @@ import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
-import android.widget.TimePicker;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AlertDialog;
@@ -65,17 +64,7 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
         int totalMinutes = getTotalMinutes(seconds);
         int hour = Math.min(totalMinutes / 60, 23);
         int minute = totalMinutes >= 24 * 60 ? 59 : totalMinutes % 60;
-        TimePickerDialog dialog = new TimePickerDialog(requireContext(), (view, selectedHour, selectedMinute) -> {},
-                hour, minute, true);
-        dialog.setTitle(R.string.preference_seconds);
-        dialog.setOnShowListener(ignored -> dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(view -> {
-            TimePicker timePicker = dialog.getTimePicker();
-            int selectedHour = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    ? timePicker.getHour()
-                    : timePicker.getCurrentHour();
-            int selectedMinute = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    ? timePicker.getMinute()
-                    : timePicker.getCurrentMinute();
+        TimePickerDialog dialog = new TimePickerDialog(requireContext(), (view, selectedHour, selectedMinute) -> {
             if (selectedHour == 0 && selectedMinute == 0) {
                 Toast.makeText(requireContext(), R.string.invalid_time_interval, Toast.LENGTH_SHORT).show();
                 return;
@@ -83,8 +72,8 @@ public class WallpaperPreferencesFragment extends PreferenceFragmentCompat {
             int selectedSeconds = (selectedHour * 60 + selectedMinute) * 60;
             sharedPreferences.edit().putString(key, String.valueOf(selectedSeconds)).apply();
             findPreference(key).setSummary(formatInterval(selectedSeconds));
-            dialog.dismiss();
-        }));
+        }, hour, minute, true);
+        dialog.setTitle(R.string.preference_seconds);
         dialog.show();
     }
 
